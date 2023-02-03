@@ -2,8 +2,6 @@
 #include <time.h>
 #include <ncurses.h>
 
-// compilation : gcc snake.c -o snake -lncurses
-// passer un argument quelconque au programme pour activer le mode lolilol
 
 #define CORP_SNAKE '-'
 #define TETE_SNAKE 'B'
@@ -11,11 +9,14 @@
 #define CASE_VIDE ' '
 
 
+
+
 // VARIABLES GLOBALES
 char ** grille = NULL;
 int nbLignes = 0;
 int nbColonnes = 0;
-int modeEvolueDansLequelLeSerpentPeutPasserATraversLesMursEtCeSansAvoirMalDuToutCeQuiEstTresPratiqueCarCaPermetDeJouerPlusLongtemps = 0; // mode lolilol
+int COLLISION= 1;
+
 
 // STRUCTURES POUR LE SNAKE
 struct uneCellule {
@@ -64,8 +65,8 @@ unSnake creerSnake() {
   return snake;
 }
 
-// Redéfini la tête du snake aux coordonnées indiquées
-// Gère les collisions avec les bords (sauf si mode lolilol) et le snake
+// Redéfini la tête du snake aux coordonnées des pixels indiquées dans OLED 
+// Gère les collisions avec les bords (reboot du jeu) 
 // Vérifie si le snake mange quelque chose
 void ajouterEnTete (unSnake * snake, int ligne, int colonne,int * aMange, int * fail) {
   uneCellule * nouvelleTete = malloc (sizeof(uneCellule));
@@ -79,22 +80,9 @@ void ajouterEnTete (unSnake * snake, int ligne, int colonne,int * aMange, int * 
   snake->teteSnake = snake->teteSnake->suiv;
 
   // GESTION DES COLLISIONS 
-  if ( modeEvolueDansLequelLeSerpentPeutPasserATraversLesMursEtCeSansAvoirMalDuToutCeQuiEstTresPratiqueCarCaPermetDeJouerPlusLongtemps) { 
-    if( snake->teteSnake->ligne < 0) {
-      snake->teteSnake->ligne = nbLignes - 1; 
-    }
-
-    else if( snake->teteSnake->ligne > nbLignes-1) {
-      snake->teteSnake->ligne = 0; 
-    }
-    else if (snake->teteSnake->colonne < 0) {
-      snake->teteSnake->colonne = nbColonnes - 1; 
-    }
-    else if ( snake->teteSnake->colonne > nbColonnes-1) {
-      snake->teteSnake->colonne = 0; 
-    }
-    else if (grille[snake->teteSnake->ligne][snake->teteSnake->colonne] == CORP_SNAKE) {
+  if (grille[snake->teteSnake->ligne][snake->teteSnake->colonne] == CORP_SNAKE) {
       *fail = 1;
+       COLLISION=1;
     }
   }
   else {
@@ -140,23 +128,23 @@ void afficherGrille(unSnake snake) {
   }
 }
 
-void gererEvenement(unSnake * snake, int touche, int * fail, uneDirection * direction,int * aMange) {
-  if(direction->ligne == 0) { // Pour ne pas 'aller en arrière'
-    if (touche == KEY_UP){ 
+void gererEvenement(unSnake * snake, char * touche, int * fail, uneDirection * direction,int * aMange) {
+  if(direction->ligne == 0) { 
+    if (touche == "T18"){  //bouton poussoir en haut
       direction->ligne = -1;
       direction->colonne = 0; // Pour ne pas aller en diagonale
     }
-    if (touche == KEY_DOWN) {
+    if (touche == "R16") {
       direction->ligne = 1;
       direction->colonne = 0;
     }
   }
   if (direction->colonne == 0) {
-    if (touche == KEY_LEFT) {
+    if (touche == "N15") {   //bouton poussoir à gauche 
       direction->colonne = -1;
       direction->ligne = 0;
     }
-    if (touche == KEY_RIGHT) {
+    if (touche == "R18") {  //bouton poussoir à droite
       direction->colonne = 1;
       direction->ligne = 0;
     }
@@ -184,17 +172,10 @@ void genererDuManger(char ** grille) {
   }
 }
 
-void printFail() {
-  move(nbLignes/2 - 5/2,nbColonnes/2 - 37/2);
-  printw("    _/_/_/_/    _/_/    _/_/_/  _/   \n");
-  move(1 + nbLignes/2 - 5/2,nbColonnes/2 - 37/2);
-  printw("   _/        _/    _/    _/    _/    \n");
-  move(2 + nbLignes/2 - 5/2,nbColonnes/2 - 37/2);
-  printw("  _/_/_/    _/_/_/_/    _/    _/     \n");
-  move(3 + nbLignes/2 - 5/2,nbColonnes/2 - 37/2);
-  printw(" _/        _/    _/    _/    _/      \n");  
-  move(4 + nbLignes/2 - 5/2,nbColonnes/2 - 37/2);
-  printw("_/        _/    _/  _/_/_/  _/_/_/_/ \n");
+void reboot_game() {
+   	if (COLLISION==1){
+		break;
+	}
 }
 
 int main (int argc, char * argv []) {
@@ -209,16 +190,6 @@ int main (int argc, char * argv []) {
   int delay = 0;
 
   // INITIALISATIONS
-  if (argc > 1) {
-    modeEvolueDansLequelLeSerpentPeutPasserATraversLesMursEtCeSansAvoirMalDuToutCeQuiEstTresPratiqueCarCaPermetDeJouerPlusLongtemps = 1; 
-  }
-  initscr();
-  keypad(stdscr, TRUE);
-  noecho();
-  cbreak();
-
-  getmaxyx(stdscr,nbLignes,nbColonnes);
-
   grille = malloc(nbLignes * sizeof(char *));
   for (i=0;i<nbLignes;i++) {
     grille[i] = malloc(nbColonnes*sizeof(char));
@@ -235,6 +206,7 @@ int main (int argc, char * argv []) {
       timeout(delay); // On raffraichi toutes les 60 ms au max
     }
     afficherGrille(snake);
+	// gérer les interruptions venant des boutons poussoirs avec PACKAGE_PIN  
     touche = getch();
     gererEvenement(&snake,touche,&fail,&direction,&aMange);
     erase();
